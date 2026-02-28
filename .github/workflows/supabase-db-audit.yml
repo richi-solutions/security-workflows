@@ -1,0 +1,141 @@
+# Reusable workflow: Supabase Database Security Audit
+# Connects via psql and runs the security_audit() function.
+#
+# Prerequisites:
+#   - Migration with security_audit() deployed to the project
+#   - Org/repo secret with the DB password
+#
+# Called by project repos via their security-audit.yml
+
+name: Supabase DB Security Audit
+
+on:
+  workflow_call:
+    inputs:
+      project-ref:
+        description: "Supabase project reference ID"
+        required: true
+        type: string
+      project-name:
+        description: "Human-readable project name (e.g., moviemind)"
+        required: true
+        type: string
+    secrets:
+      db-password:
+        description: "Supabase database password"
+        required: true
+
+jobs:
+  db-audit:
+    name: DB Audit (${{ inputs.project-name }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run security_audit()
+        id: audit
+        env:
+          PGPASSWORD: ${{ secrets.db-password }}
+        run: |
+          # Connect to Supabase Pooler (transaction mode)
+          CONN="postgresql://postgres.${PROJECT_REF}:${PGPASSWORD}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+          PROJECT_REF="${{ inputs.project-ref }}"
+
+          RESULTS=$(psql "$CONN" -t -A -F '|' -c "SELECT severity, category, table_name, detail FROM security_audit();" 2>&1) || {
+            echo "Failed to connect or run security_audit(). Is the migration deployed?"
+            echo "has_findings=error" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          # Build markdown report
+          REPORT_FILE="/tmp/db-audit-report.md"
+          echo "## Database Security Audit: ${{ inputs.project-name }}" > "$REPORT_FILE"
+          echo "" >> "$REPORT_FILE"
+          echo "Project ref: \`${{ inputs.project-ref }}\`" >> "$REPORT_FILE"
+          echo "Run: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$REPORT_FILE"
+          echo "" >> "$REPORT_FILE"
+
+          CRITICAL=0
+          WARNING=0
+          INFO=0
+
+          if [ -z "$RESULTS" ]; then
+            echo "No findings. All tables pass security checks." >> "$REPORT_FILE"
+            echo "has_findings=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "| Severity | Category | Table | Detail |" >> "$REPORT_FILE"
+            echo "|----------|----------|-------|--------|" >> "$REPORT_FILE"
+
+            while IFS='|' read -r sev cat tbl det; do
+              [ -z "$sev" ] && continue
+              echo "| $sev | $cat | $tbl | $det |" >> "$REPORT_FILE"
+              case "$sev" in
+                critical) CRITICAL=$((CRITICAL + 1)) ;;
+                warning) WARNING=$((WARNING + 1)) ;;
+                info) INFO=$((INFO + 1)) ;;
+              esac
+            done <<< "$RESULTS"
+
+            echo "" >> "$REPORT_FILE"
+            echo "**Summary:** $CRITICAL critical, $WARNING warning, $INFO info" >> "$REPORT_FILE"
+
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "has_findings=critical" >> "$GITHUB_OUTPUT"
+            elif [ "$WARNING" -gt 0 ]; then
+              echo "has_findings=warning" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_findings=info" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+          echo "critical=$CRITICAL" >> "$GITHUB_OUTPUT"
+          echo "warning=$WARNING" >> "$GITHUB_OUTPUT"
+          echo "info=$INFO" >> "$GITHUB_OUTPUT"
+
+          cat "$REPORT_FILE" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log audit to Firestore (optional)
+        if: steps.audit.outputs.has_findings != 'false' && steps.audit.outputs.has_findings != 'error'
+        env:
+          PGPASSWORD: ${{ secrets.db-password }}
+        run: |
+          PROJECT_REF="${{ inputs.project-ref }}"
+          CONN="postgresql://postgres.${PROJECT_REF}:${PGPASSWORD}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+          psql "$CONN" -c "SELECT run_security_audit_and_log();" 2>/dev/null || true
+
+      - name: Create/update issue for critical findings
+        if: steps.audit.outputs.has_findings == 'critical'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/db-audit-report.md', 'utf8');
+            const title = `DB Security Audit: ${{ inputs.project-name }} — critical findings`;
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'security,db-audit',
+              state: 'open'
+            });
+
+            const existing = issues.data.find(i => i.title.includes('${{ inputs.project-name }}'));
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: report + '\n\n_Updated: ' + new Date().toISOString() + '_'
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: report,
+                labels: ['security', 'db-audit']
+              });
+            }

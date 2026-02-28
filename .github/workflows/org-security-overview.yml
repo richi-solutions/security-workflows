@@ -1,0 +1,114 @@
+# Cross-project security dashboard
+# Runs all audit types across all Supabase projects, then updates a pinned issue.
+#
+# Requires:
+#   - Org secrets: SUPABASE_ACCESS_TOKEN, MOVIEMIND_DB_PASSWORD, HOOKR_DB_PASSWORD
+
+name: Org Security Overview
+
+on:
+  schedule:
+    - cron: "30 3 * * 1" # Weekly Monday 03:30 UTC (after per-project audits)
+  workflow_dispatch:
+
+jobs:
+  # --- Supabase API Advisor ---
+  advisor-moviemind:
+    name: Advisor (moviemind)
+    uses: ./.github/workflows/supabase-advisor.yml
+    with:
+      project-ref: lugenfikabppcpjjghlw
+    secrets: inherit
+
+  advisor-hookr:
+    name: Advisor (hookr)
+    uses: ./.github/workflows/supabase-advisor.yml
+    with:
+      project-ref: molygyfsdhzvfakpfwtk
+    secrets: inherit
+
+  # --- Database-level audit ---
+  db-audit-moviemind:
+    name: DB Audit (moviemind)
+    uses: ./.github/workflows/supabase-db-audit.yml
+    with:
+      project-ref: lugenfikabppcpjjghlw
+      project-name: moviemind
+    secrets:
+      db-password: ${{ secrets.MOVIEMIND_DB_PASSWORD }}
+
+  db-audit-hookr:
+    name: DB Audit (hookr)
+    uses: ./.github/workflows/supabase-db-audit.yml
+    with:
+      project-ref: molygyfsdhzvfakpfwtk
+      project-name: hookr
+    secrets:
+      db-password: ${{ secrets.HOOKR_DB_PASSWORD }}
+
+  # --- Dashboard summary ---
+  dashboard:
+    name: Update Dashboard
+    runs-on: ubuntu-latest
+    needs:
+      - advisor-moviemind
+      - advisor-hookr
+      - db-audit-moviemind
+      - db-audit-hookr
+    if: always()
+
+    steps:
+      - name: Build dashboard
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const now = new Date().toISOString();
+            const jobs = [
+              { name: 'Advisor (moviemind)', result: '${{ needs.advisor-moviemind.result }}' },
+              { name: 'Advisor (hookr)', result: '${{ needs.advisor-hookr.result }}' },
+              { name: 'DB Audit (moviemind)', result: '${{ needs.db-audit-moviemind.result }}' },
+              { name: 'DB Audit (hookr)', result: '${{ needs.db-audit-hookr.result }}' },
+            ];
+
+            const icon = (r) => r === 'success' ? ':white_check_mark:' : r === 'failure' ? ':x:' : ':warning:';
+
+            let body = `# Security Dashboard\n\n`;
+            body += `Last run: ${now}\n\n`;
+            body += `| Check | Status |\n|-------|--------|\n`;
+
+            for (const j of jobs) {
+              body += `| ${j.name} | ${icon(j.result)} ${j.result} |\n`;
+            }
+
+            body += `\n---\n`;
+            body += `_Auto-updated by [org-security-overview.yml](https://github.com/richi-solutions/security-workflows)_\n`;
+
+            // Find or create the dashboard issue
+            const title = 'Security Dashboard';
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'security,dashboard',
+              state: 'open',
+            });
+
+            const existing = issues.data.find(i => i.title === title);
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+              core.info(`Updated issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['security', 'dashboard'],
+              });
+              core.info(`Created issue #${created.data.number} — pin it manually`);
+            }
