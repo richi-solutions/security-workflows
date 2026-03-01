@@ -1,5 +1,6 @@
 # Reusable workflow: Dependency scanning with OSV-Scanner
 # Called by project repos via security.yml
+# Pin: v2.3.3 (no floating major tag available)
 
 name: OSV Dependency Scan
 
