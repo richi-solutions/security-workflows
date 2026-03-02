@@ -1,0 +1,34 @@
+# Security scanning caller workflow
+# Distributed via .claude/security/ to .github/workflows/security.yml
+#
+# Calls reusable workflows from richi-solutions/orchestrator.richi.solutions
+
+name: Security Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 4 * * 1" # Weekly Monday 04:00 UTC
+  workflow_dispatch:
+
+jobs:
+  gitleaks:
+    uses: richi-solutions/orchestrator.richi.solutions/.github/workflows/gitleaks.yml@main
+    secrets: inherit
+
+  semgrep:
+    uses: richi-solutions/orchestrator.richi.solutions/.github/workflows/semgrep.yml@main
+    secrets: inherit
+
+  osv-scan:
+    uses: richi-solutions/orchestrator.richi.solutions/.github/workflows/osv-scan.yml@main
+    secrets: inherit
+
+  supabase-advisor:
+    if: vars.SUPABASE_PROJECT_REF != ''
+    uses: richi-solutions/orchestrator.richi.solutions/.github/workflows/supabase-advisor.yml@main
+    secrets: inherit
+    with:
+      project-ref: ${{ vars.SUPABASE_PROJECT_REF }}

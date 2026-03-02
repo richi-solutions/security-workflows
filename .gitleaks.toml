@@ -1,0 +1,21 @@
+# gitleaks configuration
+# Distributed via .claude/security/ to all richi-solutions projects
+
+title = "richi-solutions gitleaks config"
+
+[allowlist]
+description = "Global allowlist for known false positives"
+
+paths = [
+  '''node_modules''',
+  '''dist''',
+  '''\.git''',
+  '''bun\.lockb''',
+  '''pnpm-lock\.yaml''',
+  '''package-lock\.json''',
+]
+
+# Supabase anon keys in .env.example are intentionally public
+regexes = [
+  '''VITE_SUPABASE_PUBLISHABLE_KEY.*example''',
+]

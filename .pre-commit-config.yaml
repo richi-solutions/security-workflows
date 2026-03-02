@@ -1,0 +1,10 @@
+# Pre-commit hooks for security
+# Distributed via .claude/security/ to all richi-solutions projects
+#
+# Setup: pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
