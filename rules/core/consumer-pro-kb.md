@@ -611,14 +611,29 @@ the dotclaude subtree (`/update-dotclaude`).
 
 ### Conventional Commits
 
-Enforced via commitlint:
+Enforced via commitlint. **Every commit MUST include a body** describing WHAT was changed and WHY.
 
 ```
 feat: add rating dialog
+
+Implement star-based rating dialog that appears after movie ends.
+Ratings are stored in Supabase and used by the recommendation engine.
+
 fix: resolve infinite loop in recommendations
+
+The similarity loop did not exclude already-rated movies, causing
+infinite re-renders when the user had rated all items in a cluster.
+
 docs: update API documentation
 chore: upgrade dependencies
 ```
+
+**Commit message rules:**
+- **Subject:** Conventional Commit prefix, max 72 chars, imperative mood
+- **Body:** MANDATORY for `feat`, `fix`, `refactor`, `test` — describes what changed and why
+- **Body:** Optional for `chore`, `docs` (when the subject is self-explanatory)
+- Blank line between subject and body
+- Body lines max 100 chars
 
 ### Rollback Runbook
 

@@ -26,6 +26,7 @@ Higher authority overrides lower. If two rules conflict, the higher one wins.
 - **Typed Config Loader** — One validated entry point for all environment vars
 - **Versioned Events** — Track app events via stable schemas, no PII
 - **English-Only Code Comments** — No exceptions
+- **Commit Body Mandatory** — Every `feat`, `fix`, `refactor`, `test` commit includes a body describing what changed and why
 - **Secrets via env vars only** — Never in repo or client code
 - **RLS enforced** — Row Level Security on all user tables
 
