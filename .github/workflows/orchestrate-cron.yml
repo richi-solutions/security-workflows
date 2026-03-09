@@ -1,0 +1,91 @@
+# Orchestrator Cron Triggers
+#
+# Replaces in-process node-cron with reliable GitHub Actions schedules.
+# Each cron entry maps to a job defined in schedule.yaml.
+# The server's /api/trigger/:jobName endpoint executes the job.
+#
+# Required secrets:
+#   - ORCHESTRATOR_URL: Base URL of the orchestrator (e.g. https://orchestrator.richi.solutions)
+#   - ORCHESTRATOR_API_KEY: SERVICE_API_KEY for X-API-Key auth
+#
+# To add a new job:
+#   1. Add job to schedule.yaml
+#   2. Add cron entry below under on.schedule
+#   3. Add case in "Determine job" step
+#   4. Add job name to workflow_dispatch options
+
+name: Orchestrate Cron
+
+on:
+  schedule:
+    - cron: "0 2 * * *"       # security-scan       — Daily 02:00 UTC
+    - cron: "0 3 * * 0"       # code-review         — Weekly Sunday 03:00 UTC
+    - cron: "0 4 * * 1"       # docs-check          — Weekly Monday 04:00 UTC
+    - cron: "59 21 * * *"     # daily-commits       — Daily 21:59 UTC
+    - cron: "59 22 * * *"     # commits-to-social   — Daily 22:59 UTC
+    - cron: "0 6 * * *"       # testuser-sync       — Daily 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      job_name:
+        description: "Job to trigger (must match schedule.yaml)"
+        required: true
+        type: choice
+        options:
+          - security-scan
+          - code-review
+          - docs-check
+          - daily-commits
+          - commits-to-social
+          - testuser-sync
+
+jobs:
+  trigger:
+    name: Trigger Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine job name
+        id: job
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.job_name }}" >> "$GITHUB_OUTPUT"
+          else
+            CRON="${{ github.event.schedule }}"
+            case "$CRON" in
+              "0 2 * * *")    echo "name=security-scan"     >> "$GITHUB_OUTPUT" ;;
+              "0 3 * * 0")    echo "name=code-review"       >> "$GITHUB_OUTPUT" ;;
+              "0 4 * * 1")    echo "name=docs-check"        >> "$GITHUB_OUTPUT" ;;
+              "59 21 * * *")  echo "name=daily-commits"     >> "$GITHUB_OUTPUT" ;;
+              "59 22 * * *")  echo "name=commits-to-social" >> "$GITHUB_OUTPUT" ;;
+              "0 6 * * *")    echo "name=testuser-sync"     >> "$GITHUB_OUTPUT" ;;
+              *)
+                echo "::error::Unknown cron expression: $CRON"
+                exit 1
+                ;;
+            esac
+          fi
+          echo "Triggering job: $(cat "$GITHUB_OUTPUT" | grep name | cut -d= -f2)"
+
+      - name: Trigger orchestrator
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X POST "${{ secrets.ORCHESTRATOR_URL }}/api/trigger/${{ steps.job.outputs.name }}" \
+            -H "X-API-Key: ${{ secrets.ORCHESTRATOR_API_KEY }}" \
+            -H "Content-Type: application/json")
+
+          echo "HTTP Status: $HTTP_STATUS"
+          cat /tmp/response.json | jq . 2>/dev/null || cat /tmp/response.json
+
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Trigger failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Log result
+        if: always()
+        run: |
+          echo "## Job Trigger Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | \`${{ steps.job.outputs.name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Trigger | \`${{ github.event_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Time | \`$(date -u +%Y-%m-%dT%H:%M:%SZ)\` |" >> "$GITHUB_STEP_SUMMARY"

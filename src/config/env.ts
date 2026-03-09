@@ -21,6 +21,7 @@ const EnvSchema = z.object({
 
   // Schedule
   SCHEDULE_PATH: z.string().default('./schedule.yaml'),
+  DISABLE_CRON: z.string().default('false').transform((v) => v === 'true' || v === '1'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -111,7 +111,11 @@ app.use((_req, res) => {
 // --- Start ---
 const server = app.listen(env.PORT, () => {
   logger.info('server_started', { port: env.PORT, env: env.NODE_ENV });
-  scheduler.start();
+  if (env.DISABLE_CRON) {
+    logger.info('cron_disabled', { reason: 'DISABLE_CRON=true, jobs triggered externally via GitHub Actions' });
+  } else {
+    scheduler.start();
+  }
 });
 
 // Graceful shutdown
