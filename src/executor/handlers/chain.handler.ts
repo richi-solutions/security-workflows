@@ -74,6 +74,10 @@ export class ChainHandler {
       });
     }
 
+    // Try to parse structured JSON output for social content
+    const rawContent = claudeResult.data.content;
+    const socialMeta = this.parseSocialOutput(rawContent);
+
     return success({
       jobName,
       jobType: 'chain',
@@ -82,9 +86,39 @@ export class ChainHandler {
       durationMs: new Date(completedAt).getTime() - new Date(startedAt).getTime(),
       status: 'success',
       targets: [jobDef.depends_on],
-      results: [{ target: jobDef.depends_on, status: 'success', output: claudeResult.data.content }],
-      summary: claudeResult.data.content.substring(0, 500),
+      results: [{ target: jobDef.depends_on, status: 'success', output: rawContent }],
+      summary: rawContent.substring(0, 500),
+      ...(socialMeta ? { _socialMeta: socialMeta } : {}),
     });
+  }
+
+  private parseSocialOutput(raw: string): { contents: Array<{ contentType: string; shouldPost: boolean; reason: string; platforms: string[]; components: Array<{ componentType: string; content: string; sortOrder: number }> }> } | null {
+    try {
+      // Strip markdown code fences if present
+      const cleaned = raw.replace(/```json?\s*/g, '').replace(/```\s*/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      if (!parsed.contents || !Array.isArray(parsed.contents)) return null;
+
+      return {
+        contents: parsed.contents.map((c: Record<string, unknown>) => ({
+          contentType: String(c.content_type ?? ''),
+          shouldPost: Boolean(c.should_post),
+          reason: String(c.reason ?? ''),
+          platforms: Array.isArray(c.platforms) ? c.platforms.map(String) : [],
+          components: Array.isArray(c.components)
+            ? (c.components as Array<Record<string, unknown>>).map((comp) => ({
+                componentType: String(comp.component_type ?? ''),
+                content: String(comp.content ?? ''),
+                sortOrder: Number(comp.sort_order ?? 0),
+              }))
+            : [],
+        })),
+      };
+    } catch {
+      logger.warn('chain_social_parse_failed', { raw: raw.substring(0, 200) });
+      return null;
+    }
   }
 
   private async waitForDependency(depName: string, traceId: string): Promise<Result<JobResult | null>> {

@@ -22,6 +22,19 @@ export const JobResultSchema = z.object({
     reposActive: z.array(z.string()),
     totalCommits: z.number(),
   }).optional(),
+  _socialMeta: z.object({
+    contents: z.array(z.object({
+      contentType: z.string(),
+      shouldPost: z.boolean(),
+      reason: z.string(),
+      platforms: z.array(z.string()),
+      components: z.array(z.object({
+        componentType: z.string(),
+        content: z.string(),
+        sortOrder: z.number(),
+      })),
+    })),
+  }).optional(),
 });
 
 export type TargetResult = z.infer<typeof TargetResultSchema>;

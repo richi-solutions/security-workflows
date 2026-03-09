@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
-import { StorePort, CommitSummaryInput } from './store.port';
+import { StorePort, CommitSummaryInput, SocialContentInput } from './store.port';
 import { JobResult } from '../contracts/v1/job-result.schema';
 import { Result, success, failure } from '../lib/result';
 import { logger } from '../lib/logger';
@@ -141,6 +141,73 @@ export class SupabaseStoreAdapter implements StorePort {
     } catch (err) {
       logger.error('store_commit_summary_error', err, { traceId });
       return failure('STORE_ERROR', 'Failed to save commit summary', traceId);
+    }
+  }
+
+  async saveSocialContent(input: SocialContentInput): Promise<Result<{ id: string }>> {
+    const traceId = uuidv4();
+    try {
+      // 1. Insert social_content row
+      const { data: content, error: contentErr } = await this.client
+        .from('social_content')
+        .insert({
+          job_run_id: input.jobRunId,
+          post_date: input.postDate,
+          content_type: input.contentType,
+          should_post: input.shouldPost,
+          reason: input.reason,
+          status: input.shouldPost ? 'draft' : 'skipped',
+        })
+        .select('id')
+        .single();
+
+      if (contentErr) {
+        logger.error('store_social_content_failed', contentErr, { traceId });
+        return failure('STORE_ERROR', contentErr.message, traceId);
+      }
+
+      const contentId = content.id;
+
+      // 2. Insert components
+      if (input.components.length > 0) {
+        const { error: compErr } = await this.client
+          .from('social_content_components')
+          .insert(
+            input.components.map((c) => ({
+              social_content_id: contentId,
+              component_type: c.componentType,
+              content: c.content,
+              sort_order: c.sortOrder,
+            })),
+          );
+
+        if (compErr) {
+          logger.error('store_social_components_failed', compErr, { traceId, contentId });
+        }
+      }
+
+      // 3. Insert platform mappings
+      if (input.platforms.length > 0) {
+        const { error: platErr } = await this.client
+          .from('social_content_platforms')
+          .insert(
+            input.platforms.map((p) => ({
+              social_content_id: contentId,
+              platform: p,
+              platform_status: 'pending',
+            })),
+          );
+
+        if (platErr) {
+          logger.error('store_social_platforms_failed', platErr, { traceId, contentId });
+        }
+      }
+
+      logger.info('store_social_content_saved', { traceId, id: contentId, contentType: input.contentType });
+      return success({ id: contentId });
+    } catch (err) {
+      logger.error('store_social_content_error', err, { traceId });
+      return failure('STORE_ERROR', 'Failed to save social content', traceId);
     }
   }
 }

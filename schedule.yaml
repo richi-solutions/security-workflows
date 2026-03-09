@@ -21,13 +21,13 @@ jobs:
     timeout_ms: 180000
 
   daily-commits:
-    cron: "0 20 * * *"         # Daily 20:00 UTC
+    cron: "59 21 * * *"        # Daily 21:59 UTC (23:59 CEST)
     type: aggregate
     agent: commit-summarizer
     timeout_ms: 120000
 
   commits-to-social:
-    cron: "0 21 * * *"         # Daily 21:00 UTC (1h after daily-commits)
+    cron: "59 22 * * *"        # Daily 22:59 UTC (1h after daily-commits)
     type: chain
     depends_on: daily-commits
     agent: social-media-writer

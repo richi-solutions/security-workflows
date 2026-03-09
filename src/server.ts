@@ -65,6 +65,24 @@ async function executeJob(jobName: string, jobDef: import('./contracts/v1/schedu
           totalCommits: result.data._commitMeta.totalCommits,
         });
       }
+
+      if (result.data._socialMeta) {
+        for (const item of result.data._socialMeta.contents) {
+          await store.saveSocialContent({
+            jobRunId: storeResult.data.id,
+            postDate: new Date().toISOString().split('T')[0],
+            contentType: item.contentType as 'image_post' | 'carousel' | 'text' | 'short',
+            shouldPost: item.shouldPost,
+            reason: item.reason,
+            components: item.components.map((c) => ({
+              componentType: c.componentType as 'caption' | 'hook' | 'cta' | 'thread' | 'video_script' | 'image_prompt' | 'hashtags',
+              content: c.content,
+              sortOrder: c.sortOrder,
+            })),
+            platforms: item.platforms,
+          });
+        }
+      }
     } else {
       logger.error('job_store_failed', new Error(storeResult.error.message), { jobName });
     }
