@@ -19,19 +19,24 @@ jobs:
   advisor:
     name: Supabase Audit
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Query Supabase Security Advisor
         id: advisor
+        env:
+          SUPABASE_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ inputs.project-ref }}
         run: |
           # Fetch lint results (no -f flag: always capture response for error handling)
           LINT=$(curl -s \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
-            "https://api.supabase.com/v1/projects/${{ inputs.project-ref }}/advisors/lint" \
+            -H "Authorization: Bearer ${SUPABASE_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/advisors/lint" \
             || echo '[]')
 
           echo "## Supabase Security Advisor Results" > /tmp/advisor-report.md
           echo "" >> /tmp/advisor-report.md
-          echo "Project: \`${{ inputs.project-ref }}\`" >> /tmp/advisor-report.md
+          echo "Project: \`${PROJECT_REF}\`" >> /tmp/advisor-report.md
           echo "" >> /tmp/advisor-report.md
 
           # Validate response is a JSON array (not an error object)
@@ -42,8 +47,8 @@ jobs:
             echo "Failed to fetch advisor results: $ERROR_MSG" >> /tmp/advisor-report.md
             echo "" >> /tmp/advisor-report.md
             echo "Possible causes:" >> /tmp/advisor-report.md
-            echo "- Missing or invalid \`SUPABASE_ACCESS_TOKEN\` secret" >> /tmp/advisor-report.md
-            echo "- Invalid project reference: \`${{ inputs.project-ref }}\`" >> /tmp/advisor-report.md
+            echo "- Missing or invalid SUPABASE_ACCESS_TOKEN secret" >> /tmp/advisor-report.md
+            echo "- Invalid project reference: ${PROJECT_REF}" >> /tmp/advisor-report.md
             echo "has_findings=error" >> "$GITHUB_OUTPUT"
             cat /tmp/advisor-report.md >> "$GITHUB_STEP_SUMMARY"
             exit 0
