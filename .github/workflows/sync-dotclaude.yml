@@ -1,25 +1,37 @@
-# Automatic .claude/ subtree update in all agent repos
+# Distribute shared .claude/ content to all agent repos
 #
-# Pulls the latest .claude/ template from the central repo into
-# each *.richi.solutions repo via git subtree pull.
-# Aborts cleanly on merge conflicts — resolve manually.
+# The orchestrator is the single source of truth for .claude/.
+# This workflow copies shared directories (agents, rules, ref, skills,
+# sync, settings.json) to each *.richi.solutions repo.
+#
+# Project-specific files (CLAUDE.md, .mcp.json, reviews/) are NOT touched.
+# Config files from .claude/sync/ are also copied to the repo root.
 #
 # Requires:
 #   - ORG_PAT secret (GitHub PAT with repo + workflow scope)
 
-name: Sync .claude Subtree
+name: Sync .claude
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.claude/**'
+  schedule:
+    - cron: "0 5 * * *" # Daily 05:00 UTC — catches new repos
   workflow_dispatch:
-  repository_dispatch:
-    types: [dotclaude-updated]
 
 jobs:
   sync:
-    name: Update .claude Subtree
+    name: Distribute .claude
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout orchestrator
+        uses: actions/checkout@v4
+        with:
+          path: orchestrator
+
       - name: Discover target repos
         id: discover
         env:
@@ -47,33 +59,31 @@ jobs:
           echo "Discovered repos:"
           echo "$REPOS" | jq -r '.[] | "  - \(.name) (branch: \(.default_branch))"'
 
-      - name: Pull .claude subtree in each repo
+      - name: Sync .claude to repos
         env:
           GH_TOKEN: ${{ secrets.ORG_PAT }}
           ORG_NAME: ${{ github.repository_owner }}
           REPOS: ${{ steps.discover.outputs.repos }}
-          CENTRAL_REPO: https://github.com/richi-solutions/.claude.git
         run: |
+          SOURCE="$GITHUB_WORKSPACE/orchestrator/.claude"
           REPO_COUNT=$(echo "$REPOS" | jq length)
 
           SUCCESS=0
           FAILED=0
           SKIPPED=0
-          CONFLICT=0
           DETAILS=""
 
           for i in $(seq 0 $((REPO_COUNT - 1))); do
             REPO_NAME=$(echo "$REPOS" | jq -r ".[$i].name")
             DEFAULT_BRANCH=$(echo "$REPOS" | jq -r ".[$i].default_branch")
 
-            echo "::group::Updating .claude in $REPO_NAME"
+            echo "::group::Syncing .claude to $REPO_NAME (branch: $DEFAULT_BRANCH)"
 
             WORK_DIR="/tmp/${REPO_NAME}"
 
-            # Full clone needed for subtree operations
-            if ! git clone --branch "$DEFAULT_BRANCH" \
+            if ! git clone --depth 1 --branch "$DEFAULT_BRANCH" \
               "https://x-access-token:${GH_TOKEN}@github.com/${ORG_NAME}/${REPO_NAME}.git" \
-              "$WORK_DIR" 2>&1; then
+              "$WORK_DIR" 2>/dev/null; then
               echo "::warning::Failed to clone $REPO_NAME"
               FAILED=$((FAILED + 1))
               DETAILS="${DETAILS}| ${REPO_NAME} | Clone failed |\n"
@@ -88,60 +98,53 @@ jobs:
               continue
             }
 
-            git config user.name "richi-config-bot"
-            git config user.email "config@richi-solutions.com"
+            # Ensure .claude/ directory exists
+            mkdir -p .claude
 
-            # Check if .claude subtree exists
-            if [ ! -d ".claude" ]; then
-              echo "No .claude directory in $REPO_NAME — skipping"
+            # Copy shared directories from orchestrator
+            # (rsync deletes removed files, respects exclusions)
+            rsync -a --delete \
+              --exclude='CLAUDE.md' \
+              --exclude='CLAUDE.local.md' \
+              --exclude='settings.local.json' \
+              --exclude='.mcp.json' \
+              --exclude='reviews/' \
+              "$SOURCE/" .claude/
+
+            # Copy config files from sync/ to repo root
+            if [ -d ".claude/sync" ]; then
+              cp -r .claude/sync/. .
+            fi
+
+            if [ -z "$(git status --porcelain)" ]; then
+              echo "No changes needed for $REPO_NAME"
               SKIPPED=$((SKIPPED + 1))
-              DETAILS="${DETAILS}| ${REPO_NAME} | No .claude dir |\n"
+              DETAILS="${DETAILS}| ${REPO_NAME} | Up to date |\n"
               echo "::endgroup::"
               cd /
               rm -rf "$WORK_DIR"
               continue
             fi
 
-            # Attempt subtree pull
-            if PULL_OUTPUT=$(git subtree pull --prefix=.claude "$CENTRAL_REPO" main --squash -m "chore: update .claude subtree from central repo" 2>&1); then
-              # Check if anything actually changed
-              if echo "$PULL_OUTPUT" | grep -q "Already up to date"; then
-                echo "Already up to date: $REPO_NAME"
-                SKIPPED=$((SKIPPED + 1))
-                DETAILS="${DETAILS}| ${REPO_NAME} | Up to date |\n"
-              else
-                echo "Subtree updated in $REPO_NAME"
-                echo "$PULL_OUTPUT"
+            git diff --stat
 
-                # Sync config files to repo root
-                if [ -d ".claude/sync" ]; then
-                  cp -r .claude/sync/. .
-                  if [ -n "$(git status --porcelain)" ]; then
-                    git add -A
-                    git commit -m "chore: sync config from .claude/sync" \
-                      -m "Applied updated configs after .claude subtree pull." \
-                      -m "Automated by sync-dotclaude.yml"
-                  fi
-                fi
+            git config user.name "richi-config-bot"
+            git config user.email "config@richi-solutions.com"
+            git add -A
+            git commit -m "chore: sync .claude from orchestrator" \
+              -m "Updated shared .claude/ content (agents, rules, ref, skills, sync)" \
+              -m "and distributed config files to repo root." \
+              -m "Automated by sync-dotclaude.yml"
 
-                if PUSH_OUTPUT=$(git push origin "$DEFAULT_BRANCH" 2>&1); then
-                  echo "Successfully updated $REPO_NAME"
-                  SUCCESS=$((SUCCESS + 1))
-                  DETAILS="${DETAILS}| ${REPO_NAME} | Updated |\n"
-                else
-                  echo "::warning::Failed to push to $REPO_NAME"
-                  echo "Push error: $PUSH_OUTPUT"
-                  FAILED=$((FAILED + 1))
-                  DETAILS="${DETAILS}| ${REPO_NAME} | Push failed |\n"
-                fi
-              fi
+            if PUSH_OUTPUT=$(git push origin "$DEFAULT_BRANCH" 2>&1); then
+              echo "Successfully synced $REPO_NAME"
+              SUCCESS=$((SUCCESS + 1))
+              DETAILS="${DETAILS}| ${REPO_NAME} | Updated |\n"
             else
-              # Subtree pull failed — likely merge conflict
-              echo "::warning::Subtree pull failed for $REPO_NAME (likely merge conflict)"
-              echo "Pull output: $PULL_OUTPUT"
-              git merge --abort 2>/dev/null || true
-              CONFLICT=$((CONFLICT + 1))
-              DETAILS="${DETAILS}| ${REPO_NAME} | Conflict — resolve manually |\n"
+              echo "::warning::Failed to push to $REPO_NAME"
+              echo "Push error: $PUSH_OUTPUT"
+              FAILED=$((FAILED + 1))
+              DETAILS="${DETAILS}| ${REPO_NAME} | Push failed |\n"
             fi
 
             echo "::endgroup::"
@@ -149,13 +152,12 @@ jobs:
             rm -rf "$WORK_DIR"
           done
 
-          echo "## .claude Subtree Sync Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "## .claude Sync Results" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Metric | Count |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Updated | $SUCCESS |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Already up to date | $SKIPPED |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Conflict (manual) | $CONFLICT |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Failed | $FAILED |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Per-Repo Details" >> "$GITHUB_STEP_SUMMARY"
@@ -164,9 +166,6 @@ jobs:
           echo "|------------|--------|" >> "$GITHUB_STEP_SUMMARY"
           printf '%b' "$DETAILS" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$CONFLICT" -gt 0 ]; then
-            echo "::warning::$CONFLICT repo(s) have merge conflicts — resolve manually with /update-dotclaude"
-          fi
           if [ "$FAILED" -gt 0 ]; then
-            echo "::warning::$FAILED repo(s) failed"
+            echo "::warning::$FAILED repo(s) failed to sync"
           fi

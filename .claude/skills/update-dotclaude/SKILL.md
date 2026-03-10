@@ -1,33 +1,73 @@
 ---
 name: update-dotclaude
-description: Pulls latest .claude/ configuration from the central GitHub repo into the current project via git subtree. Use after updates to the central .claude template.
+description: Syncs shared .claude/ content from the orchestrator repo into the current project. Use after changes to the orchestrator's .claude/ template.
 disable-model-invocation: true
 allowed-tools: Bash
 ---
 
-Pull the latest `.claude/` template into this project:
+# Update .claude from Orchestrator
+
+The orchestrator repo (`richi-solutions/orchestrator.richi.solutions`) is the single source of truth for shared `.claude/` content. This skill pulls the latest shared files into the current project.
+
+## Automatic Distribution
+
+The orchestrator runs `sync-dotclaude.yml` daily at 05:00 UTC and on every push to `.claude/**`. In most cases, your project is already up to date.
+
+To trigger a manual sync for all repos: go to the orchestrator's Actions tab > "Sync .claude" > "Run workflow".
+
+## Manual Update (this project only)
+
+If you need to update this project immediately without waiting for the workflow:
 
 ```bash
-git subtree pull --prefix=.claude https://github.com/richi-solutions/.claude.git main --squash
+# Download shared .claude/ content from orchestrator
+OWNER="richi-solutions"
+SOURCE_REPO="orchestrator.richi.solutions"
+BRANCH="main"
+SHARED_DIRS="agents rules ref skills sync"
+
+for dir in $SHARED_DIRS; do
+  rm -rf ".claude/${dir}"
+  mkdir -p ".claude/${dir}"
+  gh api "repos/${OWNER}/${SOURCE_REPO}/contents/.claude/${dir}?ref=${BRANCH}" \
+    --jq '.[].download_url' | while read -r url; do
+    # Handle nested directories by preserving path structure
+    RELATIVE=$(echo "$url" | sed "s|.*/.claude/${dir}/||")
+    DEST_DIR=".claude/${dir}/$(dirname "$RELATIVE")"
+    mkdir -p "$DEST_DIR"
+    curl -sL "$url" -o ".claude/${dir}/${RELATIVE}"
+  done
+done
+
+# Also copy settings.json
+gh api "repos/${OWNER}/${SOURCE_REPO}/contents/.claude/settings.json?ref=${BRANCH}" \
+  --jq '.download_url' | xargs curl -sL -o .claude/settings.json
 ```
 
-After the pull succeeds, sync config files to their required locations:
+After downloading, sync config files to their required locations:
 
 ```bash
-# Copy all synced files from .claude/sync/ to project root
-# The sync/ directory mirrors the target repo layout — no mapping needed
 if [ -d ".claude/sync" ]; then
   cp -r .claude/sync/. .
-  git add -A -- .gitleaks.toml .pre-commit-config.yaml commitlint.config.cjs \
-    .github/dependabot.yml .github/workflows/security.yml .github/workflows/commitlint.yml
-  git diff --cached --quiet || git commit -m "chore: sync config from .claude/sync"
 fi
-```
-
-Then push to GitHub:
-
-```bash
+git add -A
+git diff --cached --quiet || git commit -m "chore: sync .claude from orchestrator"
 git push
 ```
 
-If you get a merge conflict, resolve it manually — project-specific overrides in `.claude/settings.local.json` and `.claude/CLAUDE.local.md` are gitignored and won't be affected.
+## What gets synced (shared)
+
+- `.claude/agents/` — agent definitions
+- `.claude/rules/` — framework rules (Consumer-Pro KB, Runtime Contract)
+- `.claude/ref/` — reference docs (loaded on demand)
+- `.claude/skills/` — slash commands
+- `.claude/sync/` — config files (mirror layout → repo root)
+- `.claude/settings.json` — base permissions
+
+## What stays local (project-specific)
+
+- `.claude/CLAUDE.md` — project instructions
+- `.claude/CLAUDE.local.md` — local overrides
+- `.claude/settings.local.json` — local settings
+- `.claude/.mcp.json` — MCP server config
+- `.claude/reviews/` — audit logs
