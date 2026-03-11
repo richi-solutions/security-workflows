@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Sync shared .claude/ content to all local richi-solutions repos
+# and update ~/.claude/templates/dotclaude/ (global template cache).
 #
 # Usage: bash scripts/sync-local.sh
 #
@@ -13,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ORCHESTRATOR_DIR="$(dirname "$SCRIPT_DIR")"
 PARENT_DIR="$(dirname "$ORCHESTRATOR_DIR")"
 SOURCE="${ORCHESTRATOR_DIR}/.claude"
+HOME_CLAUDE="$HOME/.claude"
 
 # Shared directories to sync
 SHARED_DIRS="agents rules ref skills sync"
@@ -28,6 +30,37 @@ fi
 echo "Source: $SOURCE"
 echo ""
 
+# --- Phase 1: Update ~/.claude/templates/dotclaude/ ---
+TEMPLATE_DIR="${HOME_CLAUDE}/templates/dotclaude"
+if [ -d "$TEMPLATE_DIR" ]; then
+  echo "[~/.claude/templates/dotclaude] Updating global template cache..."
+
+  # Sync shared directories into the template
+  for dir in $SHARED_DIRS; do
+    if [ -d "$SOURCE/$dir" ]; then
+      rm -rf "$TEMPLATE_DIR/$dir"
+      cp -r "$SOURCE/$dir" "$TEMPLATE_DIR/$dir"
+    fi
+  done
+
+  # Sync settings.json
+  if [ -f "$SOURCE/settings.json" ]; then
+    cp "$SOURCE/settings.json" "$TEMPLATE_DIR/settings.json"
+  fi
+
+  # Remove old security/ directory
+  if [ -d "$TEMPLATE_DIR/security" ]; then
+    rm -rf "$TEMPLATE_DIR/security"
+  fi
+
+  echo "  Updated"
+  echo ""
+else
+  echo "[~/.claude/templates/dotclaude] Not found — skipping"
+  echo ""
+fi
+
+# --- Phase 2: Update sibling project repos ---
 for repo_dir in "$PARENT_DIR"/*.richi.solutions; do
   repo_name=$(basename "$repo_dir")
 
