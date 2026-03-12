@@ -11,6 +11,7 @@ Use `@.claude/ref/<path>` syntax to load in Claude Code.
 | Email system (Resend) | `.claude/ref/generation/email-implementation.md` |
 | Footer implementation | `.claude/ref/generation/footer-guide.md` |
 | Legal pages / GDPR | `.claude/ref/generation/legal-pages.md` |
+| Monetization / Billing / Stripe | `.claude/ref/generation/monetization.md` |
 | Chatbot / KB generation | `.claude/ref/generation/chatbot-extractor.md` |
 | SEO implementation | `.claude/ref/growth/seo.md` |
 | Analytics & event tracking | `.claude/ref/growth/analytics.md` |
