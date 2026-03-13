@@ -309,6 +309,7 @@ Agent prompts live in `agents/` as Markdown files. Each prompt is loaded at job 
 | `security-reviewer.md` | Audits repos for secrets, RLS gaps, missing auth, vulnerable deps | `security-scan` |
 | `code-reviewer.md` | Reviews architecture, TypeScript quality, error handling, performance | `code-review` |
 | `docs-checker.md` | Audits README, API docs, env setup, inline comments, type docs | `docs-check` |
+| `docs-updater.md` | Generates/updates README, JSDoc, architecture docs, CONTRIBUTING | `orchestrate-docs.yml` |
 | `commit-summarizer.md` | Summarizes daily commits into a human-readable report | `daily-commits` |
 | `social-media-writer.md` | Converts commit summary to platform-agnostic social content JSON | `commits-to-social` |
 | `ux-analyst.md` | Reviews frontend repos for accessibility, loading/error states, responsive design | (not scheduled; available for sweep jobs) |
@@ -434,8 +435,9 @@ Calls all four reusable security workflows in a single file. This is the file di
 |----------|---------|---------|
 | `orchestrate-cron.yml` | GitHub Actions schedule + `workflow_dispatch` | Maps cron expressions to job names and calls `POST /api/trigger/:jobName` |
 | `orchestrate-audit.yml` | Weekly Monday 03:00 UTC + `workflow_dispatch` | Runs Claude security-auditor agent in each repo; opens a fix PR if changes are needed |
+| `orchestrate-docs.yml` | Weekly Tuesday 05:00 UTC + `workflow_dispatch` | Runs Claude documentation agent in each repo; opens a PR with doc updates |
 | `org-security-overview.yml` | Weekly Monday 03:30 UTC + `workflow_dispatch` | Runs all advisor/DB audit checks across all Supabase projects; updates a pinned dashboard issue |
-| `sync-security.yml` | Push to `main` touching `.claude/security/**` + daily 05:00 UTC | Pushes canonical `security.yml`, `.gitleaks.toml`, `dependabot.yml` to all org repos |
+| `sync-dotclaude.yml` | Push to `main` touching `.claude/**` + daily 05:00 UTC | Distributes shared `.claude/` content (agents, rules, ref, skills) to all org repos |
 
 ---
 
@@ -487,8 +489,8 @@ Set all variables from `.env.example` as Railway environment variables. `PORT` i
 |--------|---------|-------------|
 | `ORCHESTRATOR_URL` | `orchestrate-cron.yml` | Base URL of the deployed service |
 | `ORCHESTRATOR_API_KEY` | `orchestrate-cron.yml` | `SERVICE_API_KEY` value |
-| `ORG_PAT` | `orchestrate-audit.yml`, `sync-security.yml` | GitHub PAT with `repo` scope |
-| `ANTHROPIC_API_KEY` | `orchestrate-audit.yml` | Anthropic API key |
+| `ORG_PAT` | `orchestrate-audit.yml`, `orchestrate-docs.yml`, `sync-dotclaude.yml` | GitHub PAT with `repo` scope |
+| `ANTHROPIC_API_KEY` | `orchestrate-audit.yml`, `orchestrate-docs.yml` | Anthropic API key |
 | `SUPABASE_ACCESS_TOKEN` | `supabase-advisor.yml`, `org-security-overview.yml` | Supabase management API token |
 | `MOVIEMIND_DB_PASSWORD` | `org-security-overview.yml` | DB password for moviemind project |
 | `HOOKR_DB_PASSWORD` | `org-security-overview.yml` | DB password for hookr project |

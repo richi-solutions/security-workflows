@@ -1,3 +1,16 @@
+/**
+ * @fileoverview Typed, fail-fast environment configuration loader.
+ *
+ * Validates all required environment variables at startup using Zod.
+ * The process exits with a descriptive error if any variable is missing or
+ * invalid, preventing silent misconfiguration in production.
+ *
+ * Consumers should call `loadEnv()` once at startup (e.g. in server.ts) and
+ * then use `getEnv()` throughout the application to access the cached result.
+ *
+ * @module config/env
+ */
+
 import { z } from 'zod';
 
 const EnvSchema = z.object({
@@ -28,6 +41,22 @@ export type Env = z.infer<typeof EnvSchema>;
 
 let _env: Env | null = null;
 
+/**
+ * Parses and validates all environment variables against `EnvSchema`.
+ *
+ * Exits the process immediately (`process.exit(1)`) if any required variable
+ * is missing or fails validation, printing a structured error to stderr.
+ *
+ * The result is cached after the first call — subsequent calls return the
+ * same object without re-parsing.
+ *
+ * @returns Validated and typed environment object
+ *
+ * @example
+ * // In server.ts (composition root):
+ * const env = loadEnv();
+ * const github = new GitHubAdapter(env.GITHUB_TOKEN);
+ */
 export function loadEnv(): Env {
   if (_env) return _env;
   const parsed = EnvSchema.safeParse(process.env);
@@ -39,6 +68,14 @@ export function loadEnv(): Env {
   return _env;
 }
 
+/**
+ * Returns the cached environment object, calling `loadEnv()` on first access.
+ *
+ * Prefer `getEnv()` inside adapters and middleware where the composition root
+ * has already called `loadEnv()` at startup.
+ *
+ * @returns Validated and typed environment object
+ */
 export function getEnv(): Env {
   if (!_env) return loadEnv();
   return _env;

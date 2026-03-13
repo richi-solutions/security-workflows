@@ -1,5 +1,15 @@
+/**
+ * @fileoverview Zod schemas for schedule.yaml configuration.
+ *
+ * Validates the structure of job definitions loaded from schedule.yaml.
+ * Each job has a cron expression, type, optional agent, and optional targets.
+ *
+ * @module contracts/v1/schedule.schema
+ */
+
 import { z } from 'zod';
 
+/** Supported job execution types. */
 export const JobTypeSchema = z.enum(['sweep', 'aggregate', 'chain', 'provision']);
 
 export const TargetFilterSchema = z.record(z.string(), z.union([z.boolean(), z.string()]));

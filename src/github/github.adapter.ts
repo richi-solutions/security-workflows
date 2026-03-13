@@ -1,3 +1,16 @@
+/**
+ * @fileoverview Octokit adapter implementing GitHubPort.
+ *
+ * Uses `@octokit/rest` with automatic pagination for list operations.
+ * Falls back from the org endpoint to the authenticated user endpoint when
+ * the token belongs to a personal account rather than an organisation.
+ *
+ * All methods catch exceptions and return structured `failure(...)` results
+ * with code `'GITHUB_ERROR'`.
+ *
+ * @module github/github.adapter
+ */
+
 import { Octokit } from '@octokit/rest';
 import { v4 as uuidv4 } from 'uuid';
 import { GitHubPort, RepoListItem, CommitInfo } from './github.port';

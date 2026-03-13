@@ -1,5 +1,16 @@
+/**
+ * @fileoverview Zod schemas for job execution results.
+ *
+ * Defines the shape of JobResult (persisted to job_runs table) and
+ * TargetResult (per-repo result within a job). Also includes optional
+ * metadata schemas for commit summaries and social content.
+ *
+ * @module contracts/v1/job-result.schema
+ */
+
 import { z } from 'zod';
 
+/** Outcome of a job against a single target (repo). */
 export const TargetResultSchema = z.object({
   target: z.string(),
   status: z.enum(['success', 'failure', 'skipped']),

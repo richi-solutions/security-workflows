@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Provision handler — discovers repos needing test user provisioning.
+ *
+ * Filters repos where project.yaml has `has_testusers: true` and provisions
+ * test users. Currently a stub — logs eligible repos and returns partial status.
+ *
+ * @module executor/handlers/provision.handler
+ */
+
 import { v4 as uuidv4 } from 'uuid';
 import { JobDefinition } from '../../contracts/v1/schedule.schema';
 import { JobResult, TargetResult } from '../../contracts/v1/job-result.schema';
@@ -5,6 +14,7 @@ import { DiscoveryPort } from '../../discovery/discovery.port';
 import { Result, success } from '../../lib/result';
 import { logger } from '../../lib/logger';
 
+/** Stub handler for test user provisioning (pending full implementation). */
 export class ProvisionHandler {
   constructor(private discovery: DiscoveryPort) {}
 

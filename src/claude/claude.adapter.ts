@@ -1,3 +1,13 @@
+/**
+ * @fileoverview Anthropic SDK adapter implementing ClaudePort.
+ *
+ * Wraps the `@anthropic-ai/sdk` messages API with exponential-backoff retry
+ * logic (up to 3 attempts) on HTTP 429 (rate limit) and 5xx (server errors).
+ * All errors are returned as structured `failure(...)` results.
+ *
+ * @module claude/claude.adapter
+ */
+
 import Anthropic from '@anthropic-ai/sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudePort, ClaudeRequest, ClaudeResponse } from './claude.port';
@@ -7,15 +17,31 @@ import { logger } from '../lib/logger';
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
+/**
+ * Anthropic SDK adapter for Claude completions.
+ *
+ * Retries on rate-limit (429) and server (5xx) errors with exponential backoff.
+ * Client code always receives a `Result<ClaudeResponse>` — exceptions never escape.
+ */
 export class ClaudeAdapter implements ClaudePort {
   private client: Anthropic;
   private defaultModel: string;
 
+  /**
+   * @param apiKey - Anthropic API key (`ANTHROPIC_API_KEY`)
+   * @param defaultModel - Default Claude model ID used when `ClaudeRequest.model` is omitted
+   */
   constructor(apiKey: string, defaultModel: string) {
     this.client = new Anthropic({ apiKey });
     this.defaultModel = defaultModel;
   }
 
+  /**
+   * Sends a single-turn completion to Claude with automatic retry on transient errors.
+   *
+   * @param request - Prompt configuration; see `ClaudeRequest`
+   * @returns `Success<ClaudeResponse>` or `Failure` with code 'CLAUDE_ERROR'
+   */
   async complete(request: ClaudeRequest): Promise<Result<ClaudeResponse>> {
     const traceId = uuidv4();
     const model = request.model ?? this.defaultModel;

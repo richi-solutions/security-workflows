@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Health check endpoint.
+ *
+ * GET /health returns { ok: true, data: { status, uptime } }.
+ * No authentication required. Used by Railway health checks.
+ *
+ * @module routes/health
+ */
+
 import { Router } from 'express';
 
 export const healthRouter = Router();

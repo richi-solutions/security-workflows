@@ -1,13 +1,34 @@
+/**
+ * @fileoverview Cron scheduler wrapper using node-cron.
+ *
+ * Reads job definitions from ScheduleConfig and registers cron tasks.
+ * Also supports manual triggering via triggerManually(). When DISABLE_CRON
+ * is set, the scheduler is not started — GitHub Actions controls the schedule.
+ *
+ * @module scheduler/scheduler
+ */
+
 import cron from 'node-cron';
 import { ScheduleConfig, JobDefinition } from '../contracts/v1/schedule.schema';
 import { logger } from '../lib/logger';
 
+/** Result shape returned after a job completes via the trigger callback. */
 export interface JobTriggerResult {
   status: string;
   error?: string;
   storeError?: string;
 }
 
+/**
+ * Wraps node-cron to schedule and manage recurring job execution.
+ *
+ * @example
+ * const scheduler = new Scheduler(config, async (name, def) => {
+ *   const result = await executor.execute(name, def);
+ *   return { status: result.ok ? 'success' : 'failure' };
+ * });
+ * scheduler.start();
+ */
 export class Scheduler {
   private tasks: Map<string, cron.ScheduledTask> = new Map();
 
