@@ -74,7 +74,7 @@ Horizontal row of icon links. Each link:
 | Instagram | `https://www.instagram.com/richi.solutions` | Instagram icon |
 | LinkedIn  | `https://www.linkedin.com/company/richi-ai/` | LinkedIn icon |
 | TikTok    | `https://tiktok.com/@richi.solutions` | TikTok icon (custom SVG) |
-| YouTube   | `https://www.youtube.com/@Richi.Solutions` | YouTube icon |
+| YouTube   | `https://www.youtube.com/@Yves.Richel` | YouTube icon |
 
 Projects can add their own social media links or replace the defaults above.
 
@@ -159,21 +159,9 @@ Below a horizontal separator, centered:
 
 ## 3. Positioning
 
-### Placement in Layout
+The footer is **NOT fixed** — it scrolls with the content. On mobile it appears above the fixed bottom navigation.
 
-```
-<body>
-  <Navbar />          ← Fixed top (desktop) / bottom (mobile)
-  <main>
-    [Page content]
-  </main>
-  <Footer />          ← At the end of document flow, NOT fixed
-</body>
-```
-
-- The footer is **NOT fixed** — it scrolls with the content
-- On mobile: footer appears above the fixed bottom navigation
-- Ensure sufficient `padding-bottom` on `<main>` so the footer is not obscured by the mobile navbar
+For general layout spacing rules (navbar positioning, `padding-bottom` on `<main>`, etc.), see `ref/generation/ui-ux-guide.md` Section 2.3.
 
 ### Spacing
 
@@ -191,39 +179,36 @@ Below a horizontal separator, centered:
 
 ---
 
-## 4. Visual Behavior (design-token-based)
+## 4. Visual Behavior
 
-> **No fixed colors.** All visual properties are derived from the project design system.
+All visual properties use semantic design tokens — never fixed color values.
+For the full token list and theming rules, see `ref/generation/ui-ux-guide.md` Section 9.
 
-| Element | Design Token / Role |
-|---------|---------------------|
-| Background | `background` (with optional blur/transparency) |
-| Top separator | `border` |
-| Headings | `foreground`, semi-bold |
+Footer-specific token mapping:
+
+| Element | Token / Variant |
+|---------|-----------------|
 | Links | `muted-foreground` → `foreground` on hover |
-| Subtitle | `muted-foreground` |
-| Social icons | `muted-foreground` → `foreground` on hover |
 | Copyright text | `muted-foreground`, small font size |
 | Language selector | Ghost button variant |
 | Active language | `accent` background in dropdown |
 
-### Transitions
-
-- All interactive elements: color transition (e.g., `transition-colors`)
-- No elaborate animations in the footer
+All interactive elements use `transition-colors`. No elaborate animations in the footer.
 
 ---
 
 ## 5. Accessibility
 
+Uses the project-wide a11y standards from `ref/generation/ui-ux-guide.md` Section 8.
+
+Footer-specific requirements:
+
 | Requirement | Implementation |
 |-------------|----------------|
-| Semantic HTML | `<footer>` element |
-| Navigation | `<nav>` around link lists |
-| External links | `aria-label` on icon-only links |
-| Language selector | Keyboard-navigable (dropdown component) |
-| Contrast | Ensured through design tokens |
-| Focus indicators | Default browser focus or custom ring |
+| Semantic HTML | `<footer>` element wrapping the entire component |
+| Navigation | `<nav>` around each link list column |
+| External links | `aria-label` on icon-only social links |
+| Language selector | Keyboard-navigable dropdown component |
 
 ---
 
