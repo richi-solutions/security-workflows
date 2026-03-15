@@ -21,6 +21,7 @@ against the Consumer-Pro monetization contract.
 
 You receive a project directory to audit. The reference architecture is defined in
 `.claude/ref/generation/monetization.md` --- load it first for all expected patterns.
+That document is the **single source of truth**. This audit checks must match it exactly.
 
 ## Process
 
@@ -35,23 +36,24 @@ Determine which payment providers are configured:
 
 ### 2. Database Schema Audit
 
-Check the billing database schema:
+Check the billing database schema against **monetization.md Section 3**:
 
-- [ ] `plans` table exists with required columns (name, features, price_cents, provider IDs)
-- [ ] `subscriptions` table exists with required columns (user_id, plan_id, provider, status, periods)
+- [ ] `plans` table exists with required columns (name, display_name, features, price_cents, currency, interval, sort_order, is_active, provider IDs)
+- [ ] `subscriptions` table exists with required columns (user_id, plan_id, provider, provider_subscription_id, provider_customer_id, status, periods, cancel_at_period_end, canceled_at)
 - [ ] UNIQUE constraint on (provider, provider_subscription_id)
 - [ ] Index on (user_id, status) for fast entitlement lookups
+- [ ] Index on (provider, provider_subscription_id)
 - [ ] `user_entitlements` view exists (or equivalent query)
 - [ ] RLS enabled on `subscriptions` table
 - [ ] RLS policy: users can only SELECT own subscriptions
 - [ ] RLS policy: only service_role can INSERT/UPDATE/DELETE
-- [ ] `plans` table is public readable
+- [ ] `plans` table is public readable (RLS enabled with SELECT USING (true))
 
 Search in `supabase/migrations/` for the schema definition.
 
 ### 3. Webhook Security Audit
 
-For each configured provider:
+For each configured provider (per **monetization.md Section 9**):
 
 **Stripe:**
 - [ ] `stripe.webhooks.constructEvent` called with signature header
@@ -70,29 +72,38 @@ For each configured provider:
 
 ### 4. Webhook Completeness Audit
 
-For each configured provider, verify all critical events are handled:
+For each configured provider, verify ALL event types from **monetization.md Section 4** are handled:
 
-**Stripe:**
+**Stripe** (Section 4.1):
 - [ ] `checkout.session.completed`
 - [ ] `customer.subscription.updated`
 - [ ] `customer.subscription.deleted`
 - [ ] `invoice.payment_failed`
 
-**Apple:**
+**Apple** (Section 4.2 --- all status map entries):
 - [ ] `SUBSCRIBED`
 - [ ] `DID_RENEW`
 - [ ] `EXPIRED`
 - [ ] `DID_CHANGE_RENEWAL_STATUS`
+- [ ] `GRACE_PERIOD_EXPIRED`
 - [ ] `DID_FAIL_TO_RENEW`
+- [ ] `REFUND`
+- [ ] `REVOKE`
 
-**Google:**
+**Google** (Section 4.3 --- all status map entries):
 - [ ] Type 1 (RECOVERED)
 - [ ] Type 2 (RENEWED)
 - [ ] Type 3 (CANCELED)
 - [ ] Type 4 (PURCHASED)
+- [ ] Type 5 (ON_HOLD)
+- [ ] Type 6 (IN_GRACE_PERIOD)
+- [ ] Type 7 (RESTARTED)
+- [ ] Type 12 (REVOKED)
 - [ ] Type 13 (EXPIRED)
 
 ### 5. Entitlement Check Audit
+
+Per **monetization.md Section 4.4**:
 
 - [ ] `check-entitlement` Edge Function exists
 - [ ] Requires JWT authentication
@@ -104,39 +115,59 @@ For each configured provider, verify all critical events are handled:
 
 ### 6. Client Integration Audit
 
+Per **monetization.md Section 6**:
+
 - [ ] `useSubscription` hook exists (or equivalent)
 - [ ] Hook calls `check-entitlement` function
 - [ ] `PaywallGate` component exists (or equivalent gating mechanism)
 - [ ] Pricing page exists with plan comparison
 - [ ] Checkout flow passes `user_id` in metadata/token
 
-### 7. Cross-Platform Consistency (if multiple providers)
+### 7. Zod Contracts Audit
+
+Per **monetization.md Section 3.4**:
+
+- [ ] `src/contracts/v1/billing.schema.ts` exists
+- [ ] `PlanSchema` defined and matches `plans` table
+- [ ] `EntitlementSchema` defined and matches `check-entitlement` response
+- [ ] `CheckoutInputSchema` defined
+
+### 8. Cross-Platform Consistency (if multiple providers)
+
+Per **monetization.md Section 5**:
 
 - [ ] All providers write to the same `subscriptions` table
 - [ ] Plan IDs match across providers (same plan has stripe_price_id + apple_product_id + google_product_id)
 - [ ] Status mapping is consistent (same provider event leads to same status)
 - [ ] Conflict resolution documented or implemented (multiple active subs)
 
-### 8. Analytics Events Audit
+### 9. Analytics Events Audit
 
-Check if these mandatory billing events are emitted:
+Check ALL billing events from **monetization.md Section 8** are emitted:
 
 - [ ] `subscription_started`
+- [ ] `subscription_renewed`
 - [ ] `subscription_canceled`
+- [ ] `subscription_expired`
 - [ ] `paywall_shown`
+- [ ] `paywall_converted`
 - [ ] `checkout_started`
 - [ ] `checkout_completed`
+- [ ] `checkout_abandoned`
 
 Search in `src/` for event emission calls.
 
-### 9. Environment Variables Audit
+### 10. Environment Variables Audit
+
+Per **monetization.md Section 7**:
 
 - [ ] All required secrets listed in `.env.example`
 - [ ] No secrets hardcoded in source code
 - [ ] No secret keys in client-side code (only publishable keys allowed)
 - [ ] `STRIPE_SECRET_KEY` not prefixed with `VITE_` (would expose to client)
+- [ ] Only `VITE_STRIPE_PUBLISHABLE_KEY` uses the `VITE_` prefix
 
-### 10. Error Handling Audit
+### 11. Error Handling Audit
 
 - [ ] All Edge Functions return Error Envelope format
 - [ ] Webhook handlers are idempotent (use upsert, not insert)
@@ -189,6 +220,13 @@ Search in `src/` for event emission calls.
 | useSubscription hook | PASS/FAIL | ... |
 | PaywallGate | PASS/FAIL | ... |
 | Pricing page | PASS/FAIL | ... |
+
+### Zod Contracts
+| Check | Status | Details |
+|-------|--------|---------|
+| billing.schema.ts | PASS/FAIL | ... |
+| PlanSchema | PASS/FAIL | ... |
+| EntitlementSchema | PASS/FAIL | ... |
 
 ### Analytics Events
 | Event | Status | Details |

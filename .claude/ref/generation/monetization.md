@@ -155,6 +155,41 @@ WHERE s.status IN ('active', 'trialing')
   AND s.current_period_end > now();
 ```
 
+### 3.4 Zod Contracts
+
+Source of truth for client-side validation. Store at `src/contracts/v1/billing.schema.ts`.
+
+```typescript
+// src/contracts/v1/billing.schema.ts
+import { z } from "zod";
+
+export const PlanSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  displayName: z.string(),
+  features: z.array(z.string()),
+  priceCents: z.number().int().min(0),
+  currency: z.string(),
+  interval: z.enum(["month", "year", "lifetime"]),
+});
+
+export const EntitlementSchema = z.object({
+  plan: z.string(),
+  features: z.array(z.string()),
+  status: z.enum(["active", "trialing", "past_due", "canceled", "expired", "none"]),
+  expiresAt: z.string().datetime().nullable(),
+  willCancel: z.boolean(),
+});
+
+export const CheckoutInputSchema = z.object({
+  priceId: z.string().min(1),
+});
+
+export type Plan = z.infer<typeof PlanSchema>;
+export type Entitlement = z.infer<typeof EntitlementSchema>;
+export type CheckoutInput = z.infer<typeof CheckoutInputSchema>;
+```
+
 ---
 
 ## 4 --- Edge Function Patterns
@@ -820,11 +855,12 @@ export async function createCheckoutSession(priceId: string): Promise<string> {
 ### 7.1 Required (Stripe --- Web)
 
 ```
+# Edge Functions (server-side only — never prefix with VITE_)
 STRIPE_SECRET_KEY=sk_live_...
-STRIPE_PUBLISHABLE_KEY=pk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_ID_PRO_MONTHLY=price_...
-STRIPE_PRICE_ID_PRO_YEARLY=price_...
+
+# Client-side (VITE_ prefix exposes to browser — only publishable key!)
+VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
 ```
 
 ### 7.2 Required (Apple --- iOS)
@@ -845,9 +881,9 @@ GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
 
 ### 7.4 Client-Side (Vite)
 
-```
-VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...
-```
+> **Note:** `VITE_STRIPE_PUBLISHABLE_KEY` is already listed in Section 7.1.
+> Only publishable keys (`pk_`) may use the `VITE_` prefix. Never expose
+> secret keys to the client.
 
 ---
 

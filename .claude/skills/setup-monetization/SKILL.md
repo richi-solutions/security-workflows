@@ -11,7 +11,8 @@ argument-hint: "[stripe|apple|google|all]"
 Configure cross-platform monetization for this project.
 
 **Architecture reference:** Always load `.claude/ref/generation/monetization.md` first.
-That document is the authoritative source for all patterns used here.
+That document is the **single source of truth** for all schemas, event lists,
+env vars, and code patterns used here. Do NOT deviate from it.
 
 Providers to set up: `$ARGUMENTS` (default: `stripe` if empty)
 Project structure: !`ls src/ 2>/dev/null || echo "no src/ directory"`
@@ -45,30 +46,13 @@ Run:
 npx supabase migration new add_billing_tables
 ```
 
-Write the migration SQL based on `monetization.md` Section 3:
+Write the migration SQL using the exact schemas from **monetization.md Section 3**:
 
-### Tables to create:
+- **`plans` table** --- Section 3.1 (include provider ID columns based on selected providers)
+- **`subscriptions` table** --- Section 3.2 (with indexes and RLS policies)
+- **`user_entitlements` view** --- Section 3.3
 
-**`plans`** --- Available subscription tiers
-- id, name, display_name, description, features (JSONB)
-- stripe_price_id (if stripe/all), apple_product_id (if apple/all), google_product_id (if google/all)
-- price_cents, currency, interval, sort_order, is_active, timestamps
-- RLS: Public readable
-
-**`subscriptions`** --- Active user subscriptions
-- id, user_id (FK auth.users), plan_id (FK plans)
-- provider, provider_subscription_id, provider_customer_id
-- status (active/trialing/past_due/canceled/expired/paused)
-- current_period_start, current_period_end, cancel_at_period_end, canceled_at, timestamps
-- UNIQUE on (provider, provider_subscription_id)
-- RLS: Users can view own, service_role manages all
-
-**`user_entitlements`** --- View (not table)
-- Joins subscriptions + plans for easy entitlement lookups
-
-### Seed data:
-
-Insert a default `free` plan:
+Additionally, seed a default `free` plan:
 ```sql
 INSERT INTO public.plans (name, display_name, description, features, price_cents, interval, sort_order)
 VALUES ('free', 'Free', 'Basic access', '[]', 0, 'month', 0);
@@ -79,45 +63,26 @@ VALUES ('free', 'Free', 'Basic access', '[]', 0, 'month', 0);
 ## Step 3: Edge Functions --- Webhook Handlers
 
 Create Edge Functions for each selected provider. Follow the patterns from
-`monetization.md` Section 4 exactly.
+**monetization.md Section 4** exactly --- copy the implementation code from there.
 
 ### If stripe or all:
 
-Create `supabase/functions/stripe-webhook/index.ts`:
-- Verify Stripe signature
-- Handle: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed
-- Upsert into subscriptions table
-
-Create `supabase/functions/create-checkout/index.ts`:
-- Requires authenticated user (JWT)
-- Creates a Stripe Checkout Session with `metadata.user_id`
-- Returns checkout URL
-- Include success_url and cancel_url
+- `supabase/functions/stripe-webhook/index.ts` --- Section 4.1
+- `supabase/functions/create-checkout/index.ts` --- Section 6.3 (server-side portion)
 
 ### If apple or all:
 
-Create `supabase/functions/apple-webhook/index.ts`:
-- Decode JWS signedPayload
-- Handle: SUBSCRIBED, DID_RENEW, EXPIRED, DID_CHANGE_RENEWAL_STATUS, DID_FAIL_TO_RENEW, REFUND
-- Upsert into subscriptions table
-- User linking via appAccountToken
+- `supabase/functions/apple-webhook/index.ts` --- Section 4.2
+  - Must handle ALL event types listed in Section 4.2 status map
 
 ### If google or all:
 
-Create `supabase/functions/google-webhook/index.ts`:
-- Decode Pub/Sub message
-- Verify with Google Play Developer API
-- Handle notification types 1-13
-- Upsert into subscriptions table
-- User linking via obfuscatedExternalAccountId
+- `supabase/functions/google-webhook/index.ts` --- Section 4.3
+  - Must handle ALL notification types listed in Section 4.3 status map
 
 ### Always:
 
-Create `supabase/functions/check-entitlement/index.ts`:
-- Requires authenticated user (JWT)
-- Returns current plan, features, status, expiresAt
-- Falls back to free tier if no active subscription
-- Error envelope format
+- `supabase/functions/check-entitlement/index.ts` --- Section 4.4
 
 Ensure `supabase/functions/_shared/` exists. If `edgeConfig.ts` and `edgeResult.ts` don't exist yet, create them per KB Section 19.
 
@@ -127,25 +92,19 @@ Ensure `supabase/functions/_shared/` exists. If `edgeConfig.ts` and `edgeResult.
 
 ### React Hook
 
-Create `src/hooks/useSubscription.ts`:
-- Uses TanStack Query to call check-entitlement
-- Returns: entitlement, hasFeature(), isPro, isLoading
-- 5-minute stale time, refetch on window focus
-- See monetization.md Section 6.1
+Create `src/hooks/useSubscription.ts` per **monetization.md Section 6.1**.
 
 ### PaywallGate Component
 
-Create `src/components/PaywallGate.tsx`:
-- Props: feature (string), children, fallback (optional)
-- Shows children if feature is available
-- Shows upgrade prompt or custom fallback otherwise
-- See monetization.md Section 6.2
+Create `src/components/PaywallGate.tsx` per **monetization.md Section 6.2**.
+
+### Zod Contracts
+
+Create `src/contracts/v1/billing.schema.ts` per **monetization.md Section 3.4**.
 
 ### If stripe or all:
 
-Create `src/features/billing/service/checkout.ts`:
-- `createCheckoutSession(priceId)` --- calls create-checkout Edge Function
-- `redirectToCustomerPortal()` --- calls Stripe Customer Portal Edge Function
+Create `src/features/billing/service/checkout.ts` per **monetization.md Section 6.3**.
 
 Create `src/features/billing/ui/PricingPage.tsx`:
 - Scaffold only (basic structure, not full implementation)
@@ -163,37 +122,7 @@ npm install @stripe/stripe-js
 ## Step 5: Environment Variables
 
 Update `.env.example` with all required variables for the selected providers.
-
-### Always:
-```
-# Already present (Supabase)
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-```
-
-### If stripe or all:
-```
-# Stripe (Edge Functions)
-STRIPE_SECRET_KEY=sk_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# Stripe (Client)
-VITE_STRIPE_PUBLISHABLE_KEY=pk_...
-```
-
-### If apple or all:
-```
-# Apple (Edge Functions)
-APPLE_SHARED_SECRET=
-APPLE_BUNDLE_ID=
-```
-
-### If google or all:
-```
-# Google Play (Edge Functions)
-GOOGLE_PACKAGE_NAME=
-GOOGLE_SERVICE_ACCOUNT_KEY=
-```
+Use the exact variable names from **monetization.md Section 7**.
 
 Do NOT create or modify `.env` --- only `.env.example`.
 
@@ -202,54 +131,13 @@ Do NOT create or modify `.env` --- only `.env.example`.
 ## Step 6: Analytics Events
 
 If an analytics service/emitter exists in the project (check `src/lib/analytics.ts`
-or similar), add the billing events defined in `monetization.md` Section 8:
-
-- subscription_started, subscription_renewed, subscription_canceled, subscription_expired
-- paywall_shown, paywall_converted
-- checkout_started, checkout_completed, checkout_abandoned
+or similar), add ALL billing events defined in **monetization.md Section 8**.
 
 If no analytics layer exists yet, skip this step and note it in the summary.
 
 ---
 
-## Step 7: Contracts
-
-Create Zod schemas for billing contracts:
-
-Create `src/contracts/v1/billing.schema.ts`:
-```typescript
-import { z } from "zod";
-
-export const PlanSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  displayName: z.string(),
-  features: z.array(z.string()),
-  priceCents: z.number().int().min(0),
-  currency: z.string(),
-  interval: z.enum(["month", "year", "lifetime"]),
-});
-
-export const EntitlementSchema = z.object({
-  plan: z.string(),
-  features: z.array(z.string()),
-  status: z.enum(["active", "trialing", "past_due", "canceled", "expired", "none"]),
-  expiresAt: z.string().datetime().nullable(),
-  willCancel: z.boolean(),
-});
-
-export const CheckoutInputSchema = z.object({
-  priceId: z.string().min(1),
-});
-
-export type Plan = z.infer<typeof PlanSchema>;
-export type Entitlement = z.infer<typeof EntitlementSchema>;
-export type CheckoutInput = z.infer<typeof CheckoutInputSchema>;
-```
-
----
-
-## Step 8: Summary
+## Step 7: Summary
 
 Output:
 
