@@ -31,7 +31,7 @@
 2. **Generate API key** under Settings → API Keys → "Create API Key"
 3. **Verify domain** (already done for `contact.richi.solutions`):
    - SPF record and DKIM record configured in IONOS DNS
-   - Any prefix (e.g., `kontakt.memobot@...`, `billing.memobot@...`) works immediately
+   - Any prefix (e.g., `contact.memobot@...`, `billing.memobot@...`) works immediately
 4. **Store API key as backend secret** (name: `RESEND_API_KEY`)
 
 ### 1.2 Logo Storage Setup
@@ -67,8 +67,8 @@ CREATE POLICY "Public read access for email assets"
 
 | Email Type | Sender Address | Display Name |
 |---|---|---|
-| Contact Form | `kontakt.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}} Kontakt` |
-| Welcome Email | `willkommen.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}}` |
+| Contact Form | `contact.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}} Contact` |
+| Welcome Email | `welcome.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}}` |
 | Password Reset | `auth.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}} Security` |
 | Newsletter / Updates | `news.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}} News` |
 | Billing / Subscription | `billing.{{PROJECT_NAME}}@contact.richi.solutions` | `{{PROJECT_DISPLAY}} Billing` |
@@ -230,7 +230,7 @@ serve(async (req) => {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
     body: JSON.stringify({
-      from: `${brand.name} Kontakt <kontakt.{{PROJECT_NAME}}@contact.richi.solutions>`,
+      from: `${brand.name} Contact <contact.{{PROJECT_NAME}}@contact.richi.solutions>`,
       to: ["contact@richi.solutions"],
       subject: `Neue Kontaktanfrage von ${name}`,
       reply_to: email,
@@ -271,7 +271,7 @@ serve(async (req) => {
 
 | Template | From | Subject |
 |---|---|---|
-| `welcome` | `willkommen.{{PROJECT_NAME}}@...` | Welcome to {{PROJECT_DISPLAY}}! |
+| `welcome` | `welcome.{{PROJECT_NAME}}@...` | Welcome to {{PROJECT_DISPLAY}}! |
 | `password_reset_confirm` | `auth.{{PROJECT_NAME}}@...` | Password successfully changed |
 | `subscription_created` | `billing.{{PROJECT_NAME}}@...` | Your subscription is active |
 | `subscription_cancelled` | `billing.{{PROJECT_NAME}}@...` | Subscription cancelled |
