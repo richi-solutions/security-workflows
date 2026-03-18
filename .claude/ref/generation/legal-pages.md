@@ -38,6 +38,8 @@ Every project must provide its own legal pages covering imprint, terms of servic
 
 ## 2. Operator Information (mandatory details)
 
+> **Email address policy:** All public-facing email references (imprint, privacy policy, terms, contact forms) MUST use `contact@richi.solutions`. The address `info@richi.solutions` is reserved for internal service logins only and must NOT appear in any legal page or footer. See `ref/generation/email-implementation.md` for the full policy.
+
 Each project must provide its own operator information. Fill in the placeholders:
 
 ```
@@ -45,7 +47,7 @@ Company:            [PROJECT_COMPANY_NAME]
 Owner:              [PROJECT_OWNER]: [NAME]
 Legal form:         [PROJECT_LEGAL_FORM]
 Address:            [PROJECT_ADDRESS_STREET], [PROJECT_ADDRESS_ZIP_CITY], [PROJECT_COUNTRY]
-Email:              [PROJECT_EMAIL]
+Email:              [PROJECT_EMAIL]  (default: contact@richi.solutions)
 Website:            [PROJECT_WEBSITE]
 VAT ID:             [PROJECT_VAT_ID_OR_SMALL_BUSINESS_NOTE]
 
