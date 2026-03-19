@@ -34,18 +34,21 @@ have no independent revenue, and cannot be sold separately.
 - **License:** Proprietary (except Media which is MIT)
 - **Database:** Shared tables (`profiles`, `user_roles`, etc.) + product-prefixed tables (`platform_*`, `media_*`)
 
-### Auth Flow (SSO)
+### Auth Flow (Cookie-Based Cross-Subdomain SSO)
 
 ```
 User on ventura.richi.solutions clicks "Login"
   → Redirect to richi.solutions/:lang/auth?redirect=<origin>&product=Ventura
   → User authenticates on Richi Hub
+  → Supabase session stored as cookie (domain=.richi.solutions)
   → Redirect back to ventura.richi.solutions
-  → Session active (shared Supabase localStorage key)
+  → Cookie is readable on the subdomain → session active
 ```
 
-See `docs/integration/sso-auth-integration.md` in the Richi Hub repo for the
-full integration guide.
+All Ecosystem Tools use `cookieStorage` instead of `localStorage` so that the
+Supabase session is shared across all `*.richi.solutions` subdomains.
+
+See `.claude/ref/generation/auth-and-sessions.md` for the full integration guide.
 
 ---
 

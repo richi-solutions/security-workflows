@@ -13,6 +13,7 @@ Use `@.claude/ref/<path>` syntax to load in Claude Code.
 | Legal pages / GDPR | `.claude/ref/generation/legal-pages.md` |
 | Monetization / Billing / Stripe | `.claude/ref/generation/monetization.md` |
 | Rewards / Referrals / Feature Voting | `.claude/ref/generation/rewards.md` |
+| Auth & Sessions (Ecosystem Tools SSO) | `.claude/ref/generation/auth-and-sessions.md` |
 
 ### Backend (APIs, Pipelines, Edge Functions)
 
