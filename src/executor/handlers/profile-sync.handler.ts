@@ -57,6 +57,7 @@ export class ProfileSyncHandler {
         demoVideoUrl: asString(config['demo_video_url']),
         logoUrl: asString(config['logo_url']),
         projectUrl: asString(config['project_url']),
+        isPublic: config['public'] !== false,
       });
 
       if (upsertResult.ok) {

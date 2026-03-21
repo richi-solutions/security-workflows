@@ -21,6 +21,7 @@ export interface ProjectProfileInput {
   demoVideoUrl: string | null;
   logoUrl: string | null;
   projectUrl: string | null;
+  isPublic: boolean;
 }
 
 /** Stored project profile as returned from the database. */
