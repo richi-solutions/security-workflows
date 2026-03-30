@@ -12,14 +12,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
+    "@anthropic-ai/sdk": "^0.80.0",
     "@octokit/rest": "^22.0.1",
-    "@supabase/supabase-js": "^2.99.0",
+    "@supabase/supabase-js": "^2.100.1",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",
     "uuid": "^13.0.0",
-    "yaml": "^2.6.0",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -28,6 +28,6 @@
     "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.2"
   }
 }
