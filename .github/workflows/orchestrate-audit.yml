@@ -11,9 +11,9 @@
 name: Orchestrate Security Audit
 
 on:
-  schedule:
-    - cron: "0 3 * * 1" # Weekly Monday 03:00 UTC
   workflow_dispatch:
+  # Schedule disabled — run manually via workflow_dispatch to save ~50 EUR/month
+  # Previously: cron: "0 3 * * 1" (Weekly Monday 03:00 UTC)
 
 jobs:
   discover:

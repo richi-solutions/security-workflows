@@ -18,7 +18,6 @@ name: Orchestrate Cron
 
 on:
   schedule:
-    - cron: "0 2 * * *"       # security-scan       — Daily 02:00 UTC
     - cron: "0 3 * * 0"       # code-review         — Weekly Sunday 03:00 UTC
     - cron: "0 4 * * 1"       # docs-check          — Weekly Monday 04:00 UTC
     - cron: "59 21 * * *"     # daily-commits       — Daily 21:59 UTC
@@ -32,7 +31,6 @@ on:
         required: true
         type: choice
         options:
-          - security-scan
           - code-review
           - docs-check
           - daily-commits
@@ -53,7 +51,6 @@ jobs:
           else
             CRON="${{ github.event.schedule }}"
             case "$CRON" in
-              "0 2 * * *")    echo "name=security-scan"     >> "$GITHUB_OUTPUT" ;;
               "0 3 * * 0")    echo "name=code-review"       >> "$GITHUB_OUTPUT" ;;
               "0 4 * * 1")    echo "name=docs-check"        >> "$GITHUB_OUTPUT" ;;
               "59 21 * * *")  echo "name=daily-commits"     >> "$GITHUB_OUTPUT" ;;

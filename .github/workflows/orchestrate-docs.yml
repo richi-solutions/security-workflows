@@ -11,9 +11,9 @@
 name: Orchestrate Documentation Update
 
 on:
-  schedule:
-    - cron: "0 5 * * 1" # Weekly Monday 05:00 UTC (after sync-dotclaude daily 05:00)
   workflow_dispatch:
+  # Schedule disabled — run manually via workflow_dispatch to save ~50 EUR/month
+  # Previously: cron: "0 5 * * 1" (Weekly Monday 05:00 UTC)
 
 jobs:
   discover:

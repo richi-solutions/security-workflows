@@ -1,11 +1,4 @@
 jobs:
-  security-scan:
-    cron: "0 2 * * *"          # Daily 02:00 UTC
-    type: sweep
-    targets: all
-    agent: security-reviewer
-    timeout_ms: 300000
-
   code-review:
     cron: "0 3 * * 0"          # Weekly Sunday 03:00 UTC
     type: sweep
